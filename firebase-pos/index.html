@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS - Fitness Exclusive</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span class="material-icons">fitness_center</span>
+        <h2>Fitness Exclusive</h2>
+      </div>
+      <p class="subtitle">Point of Sale System</p>
+    </div>
+    <nav class="nav-menu">
+      <a href="#" class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+        <span class="material-icons">dashboard</span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="sales" onclick="navigateTo('sales')">
+        <span class="material-icons">point_of_sale</span><span>New Sale</span>
+      </a>
+      <a href="#" class="nav-item" data-page="stock-in" onclick="navigateTo('stock-in')">
+        <span class="material-icons">inventory</span><span>Stock In</span>
+      </a>
+      <a href="#" class="nav-item" data-page="collections" onclick="navigateTo('collections')">
+        <span class="material-icons">payments</span><span>Collections</span>
+      </a>
+      <a href="#" class="nav-item" data-page="inventory" onclick="navigateTo('inventory')">
+        <span class="material-icons">warehouse</span><span>Inventory</span>
+      </a>
+      <a href="#" class="nav-item" data-page="history" onclick="navigateTo('history')">
+        <span class="material-icons">receipt_long</span><span>Sales History</span>
+      </a>
+      <a href="#" class="nav-item" data-page="settings" onclick="navigateTo('settings')">
+        <span class="material-icons">settings</span><span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <span class="material-icons">person</span>
+        <span id="user-display">Staff</span>
+      </div>
+      <p>Trium Pasay Branch</p>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()">
+        <span class="material-icons">menu</span>
+      </button>
+      <div class="topbar-title" id="page-title">Dashboard</div>
+      <div class="topbar-right">
+        <span class="current-date" id="current-date"></span>
+        <button class="btn-icon" onclick="refreshData()" title="Refresh">
+          <span class="material-icons">refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PAGE: DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="dashboard-grid">
+        <div class="card stat-card stat-sales">
+          <div class="stat-icon"><span class="material-icons">trending_up</span></div>
+          <div class="stat-info">
+            <p class="stat-label">Total Sales</p>
+            <h3 class="stat-value" id="dash-total-sales">₱ 0.00</h3>
+          </div>
+        </div>
+        <div class="card stat-card stat-collections">
+          <div class="stat-icon"><span class="material-icons">account_balance_wallet</span></div>
+          <div class="stat-info">
+            <p class="stat-label">Total Collections</p>
+            <h3 class="stat-value" id="dash-total-collections">₱ 0.00</h3>
+          </div>
+        </div>
+        <div class="card stat-card stat-balance">
+          <div class="stat-icon"><span class="material-icons">warning</span></div>
+          <div class="stat-info">
+            <p class="stat-label">Outstanding Balance</p>
+            <h3 class="stat-value" id="dash-outstanding">₱ 0.00</h3>
+          </div>
+        </div>
+        <div class="card stat-card stat-inventory">
+          <div class="stat-icon"><span class="material-icons">inventory_2</span></div>
+          <div class="stat-info">
+            <p class="stat-label">Inventory On Hand</p>
+            <h3 class="stat-value" id="dash-inventory">0 units</h3>
+          </div>
+        </div>
+      </div>
+      <div class="dashboard-bottom">
+        <div class="card">
+          <h3 class="card-title"><span class="material-icons">receipt</span> Recent Sales</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th>Invoice</th><th>Customer</th><th>Item</th><th>Amount</th><th>Payment</th></tr></thead>
+              <tbody id="recent-sales-body"><tr><td colspan="5" class="loading-row">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="card-title"><span class="material-icons">inventory_2</span> Inventory Status</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th>Item</th><th>Stock</th><th>Status</th></tr></thead>
+              <tbody id="inventory-status-body"><tr><td colspan="3" class="loading-row">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: NEW SALE -->
+    <div class="page" id="page-sales">
+      <div class="card form-card">
+        <h3 class="card-title"><span class="material-icons">point_of_sale</span> New Sale</h3>
+        <form id="sales-form" onsubmit="submitSale(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Staff</label>
+              <select id="sale-staff" required><option value="">-- Select Staff --</option></select>
+            </div>
+            <div class="form-group">
+              <label>Customer Name</label>
+              <input type="text" id="sale-customer" placeholder="Enter customer name" required>
+            </div>
+            <div class="form-group">
+              <label>Item</label>
+              <select id="sale-item" required onchange="onItemSelect()"><option value="">-- Select Item --</option></select>
+            </div>
+            <div class="form-group">
+              <label>Qty</label>
+              <input type="number" id="sale-qty" min="1" value="1" required oninput="computeAmount()">
+            </div>
+            <div class="form-group">
+              <label>Unit Price</label>
+              <input type="text" id="sale-price" readonly class="readonly-field">
+            </div>
+            <div class="form-group">
+              <label>Amount</label>
+              <input type="text" id="sale-amount" readonly class="readonly-field amount-field">
+            </div>
+            <div class="form-group">
+              <label>Payment Type</label>
+              <select id="sale-payment" required><option value="">-- Select Payment --</option></select>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="sale-date">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-submit-sale">
+              <span class="material-icons">check_circle</span> Submit Sale
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="resetSaleForm()">
+              <span class="material-icons">clear</span> Clear
+            </button>
+          </div>
+        </form>
+        <div id="sale-success" style="display:none">
+          <div class="success-message">
+            <span class="material-icons">check_circle</span>
+            <h3>Sale Recorded!</h3>
+            <p id="sale-success-detail"></p>
+            <button class="btn btn-primary" onclick="newSaleAfterSuccess()">New Sale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: STOCK IN -->
+    <div class="page" id="page-stock-in">
+      <div class="card form-card">
+        <h3 class="card-title"><span class="material-icons">inventory</span> Stock In</h3>
+        <form id="stockin-form" onsubmit="submitStockIn(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Item</label>
+              <select id="stockin-item" required><option value="">-- Select Item --</option></select>
+            </div>
+            <div class="form-group">
+              <label>Qty Added</label>
+              <input type="number" id="stockin-qty" min="1" required>
+            </div>
+            <div class="form-group">
+              <label>Supplier</label>
+              <input type="text" id="stockin-supplier" placeholder="Supplier name">
+            </div>
+            <div class="form-group">
+              <label>Reference No</label>
+              <input type="text" id="stockin-ref" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="stockin-date">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-submit-stockin">
+              <span class="material-icons">add_circle</span> Add Stock
+            </button>
+            <button type="reset" class="btn btn-secondary"><span class="material-icons">clear</span> Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- PAGE: COLLECTIONS -->
+    <div class="page" id="page-collections">
+      <div class="card form-card">
+        <h3 class="card-title"><span class="material-icons">payments</span> Record Collection</h3>
+        <form id="collections-form" onsubmit="submitCollection(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Customer</label>
+              <input type="text" id="col-customer" placeholder="Customer name" required>
+            </div>
+            <div class="form-group">
+              <label>Invoice No</label>
+              <input type="text" id="col-invoice" placeholder="e.g. INV-00001">
+            </div>
+            <div class="form-group">
+              <label>Amount Due</label>
+              <input type="number" id="col-due" step="0.01" min="0" required oninput="computeBalance()">
+            </div>
+            <div class="form-group">
+              <label>Amount Paid</label>
+              <input type="number" id="col-paid" step="0.01" min="0" required oninput="computeBalance()">
+            </div>
+            <div class="form-group">
+              <label>Balance</label>
+              <input type="text" id="col-balance" readonly class="readonly-field">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <input type="text" id="col-status" readonly class="readonly-field">
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="col-date">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-submit-collection">
+              <span class="material-icons">check_circle</span> Record Payment
+            </button>
+            <button type="reset" class="btn btn-secondary"><span class="material-icons">clear</span> Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- PAGE: INVENTORY -->
+    <div class="page" id="page-inventory">
+      <div class="card">
+        <h3 class="card-title"><span class="material-icons">warehouse</span> Inventory Master</h3>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>Item</th><th>Beginning</th><th>Stock In</th><th>Sales</th><th>Current</th><th>Reorder</th><th>Status</th></tr></thead>
+            <tbody id="inventory-table-body"><tr><td colspan="7" class="loading-row">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: SALES HISTORY -->
+    <div class="page" id="page-history">
+      <div class="card">
+        <h3 class="card-title"><span class="material-icons">receipt_long</span> Sales History</h3>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>Invoice</th><th>Date</th><th>Staff</th><th>Customer</th><th>Item</th><th>Qty</th><th>Amount</th><th>Payment</th></tr></thead>
+            <tbody id="history-table-body"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="card form-card">
+        <h3 class="card-title"><span class="material-icons">settings</span> Manage Items & Staff</h3>
+        <div class="settings-section">
+          <h4>Items & Prices</h4>
+          <div id="items-list-container"></div>
+          <div class="form-grid" style="margin-top:12px">
+            <div class="form-group"><input type="text" id="new-item-name" placeholder="New item name"></div>
+            <div class="form-group"><input type="number" id="new-item-price" placeholder="Price" min="0"></div>
+          </div>
+          <button class="btn btn-primary" onclick="addItem()" style="margin-top:8px">
+            <span class="material-icons">add</span> Add Item
+          </button>
+        </div>
+        <div class="settings-section" style="margin-top:24px">
+          <h4>Staff</h4>
+          <div id="staff-list-container"></div>
+          <div class="form-group" style="margin-top:12px">
+            <input type="text" id="new-staff-name" placeholder="New staff name">
+          </div>
+          <button class="btn btn-primary" onclick="addStaff()" style="margin-top:8px">
+            <span class="material-icons">add</span> Add Staff
+          </button>
+        </div>
+        <div class="settings-section" style="margin-top:24px">
+          <h4>Beginning Stock</h4>
+          <div id="beginning-stock-container"></div>
+          <button class="btn btn-secondary" onclick="loadBeginningStock()" style="margin-top:8px">
+            <span class="material-icons">refresh</span> Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <p>Processing...</p>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- APP SCRIPTS -->
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
