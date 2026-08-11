@@ -489,7 +489,7 @@ async function loadSalesHistory() {
   try {
     const snap = await salesRef.orderBy('createdAt', 'desc').limit(100).get();
     if (snap.empty) {
-      tbody.innerHTML = '<tr><td colspan="8" class="loading-row">No sales history</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="loading-row">No sales history</td></tr>';
       return;
     }
     tbody.innerHTML = snap.docs.map(doc => {
@@ -503,10 +503,297 @@ async function loadSalesHistory() {
         <td>${s.qty || 0}</td>
         <td><strong>${formatCurrency(s.amount)}</strong></td>
         <td>${s.paymentType || ''}</td>
+        <td>
+          <button class="btn-edit" onclick="editSale('${doc.id}')" title="Edit">
+            <span class="material-icons">edit</span>
+          </button>
+          <button class="btn-delete" onclick="deleteSale('${doc.id}')" title="Delete">
+            <span class="material-icons">delete</span>
+          </button>
+        </td>
       </tr>`;
     }).join('');
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Error loading</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="loading-row">Error loading</td></tr>';
+  }
+}
+
+// Edit Sale
+async function editSale(docId) {
+  try {
+    const doc = await salesRef.doc(docId).get();
+    if (!doc.exists) { showToast('Sale not found', 'error'); return; }
+    const s = doc.data();
+
+    const html = `
+      <div class="modal-overlay" id="edit-modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3><span class="material-icons">edit</span> Edit Sale — ${s.invoiceNo || ''}</h3>
+            <button class="btn-icon" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span></button>
+          </div>
+          <form onsubmit="saveEditSale(event, '${docId}')">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Staff</label>
+                <select id="edit-staff">${staffData.map(st => `<option value="${st}" ${st === s.staff ? 'selected' : ''}>${st}</option>`).join('')}</select>
+              </div>
+              <div class="form-group">
+                <label>Customer</label>
+                <input type="text" id="edit-customer" value="${s.customer || ''}">
+              </div>
+              <div class="form-group">
+                <label>Item</label>
+                <select id="edit-item" onchange="editItemChanged()">${itemsData.map(i => `<option value="${i.name}" ${i.name === s.item ? 'selected' : ''}>${i.name}</option>`).join('')}</select>
+              </div>
+              <div class="form-group">
+                <label>Qty</label>
+                <input type="number" id="edit-qty" value="${s.qty || 1}" min="1" oninput="editComputeAmount()">
+              </div>
+              <div class="form-group">
+                <label>Unit Price</label>
+                <input type="number" id="edit-unitprice" value="${s.unitPrice || 0}" step="0.01">
+              </div>
+              <div class="form-group">
+                <label>Amount</label>
+                <input type="text" id="edit-amount" value="${s.amount || 0}" readonly class="readonly-field amount-field">
+              </div>
+              <div class="form-group">
+                <label>Payment Type</label>
+                <select id="edit-payment">${paymentTypes.map(p => `<option value="${p}" ${p === s.paymentType ? 'selected' : ''}>${p}</option>`).join('')}</select>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="edit-date" value="${s.date || ''}">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><span class="material-icons">save</span> Save Changes</button>
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span> Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function editItemChanged() {
+  const item = document.getElementById('edit-item').value;
+  if (priceMap[item]) {
+    document.getElementById('edit-unitprice').value = priceMap[item];
+    editComputeAmount();
+  }
+}
+
+function editComputeAmount() {
+  const qty = parseInt(document.getElementById('edit-qty').value) || 0;
+  const price = parseFloat(document.getElementById('edit-unitprice').value) || 0;
+  document.getElementById('edit-amount').value = (qty * price).toFixed(2);
+}
+
+async function saveEditSale(event, docId) {
+  event.preventDefault();
+  const qty = parseInt(document.getElementById('edit-qty').value) || 0;
+  const unitPrice = parseFloat(document.getElementById('edit-unitprice').value) || 0;
+
+  const oldDoc = await salesRef.doc(docId).get();
+  const oldData = oldDoc.data();
+  const oldItem = oldData.item;
+  const oldQty = oldData.qty || 0;
+
+  const updatedData = {
+    staff: document.getElementById('edit-staff').value,
+    customer: document.getElementById('edit-customer').value,
+    item: document.getElementById('edit-item').value,
+    qty: qty,
+    unitPrice: unitPrice,
+    amount: qty * unitPrice,
+    paymentType: document.getElementById('edit-payment').value,
+    date: document.getElementById('edit-date').value
+  };
+
+  showLoading();
+  try {
+    await salesRef.doc(docId).update(updatedData);
+
+    // Adjust inventory if item or qty changed
+    if (oldItem !== updatedData.item || oldQty !== updatedData.qty) {
+      // Reverse old sale
+      await adjustInventory(oldItem, -oldQty, 'sale');
+      // Apply new sale
+      await adjustInventory(updatedData.item, updatedData.qty, 'sale');
+    }
+
+    document.getElementById('edit-modal').remove();
+    hideLoading();
+    showToast('Sale updated!', 'success');
+    loadSalesHistory();
+    loadDashboard();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// Delete Sale
+async function deleteSale(docId) {
+  if (!confirm('Delete this sale? Hindi na ito mare-recover.')) return;
+
+  showLoading();
+  try {
+    const doc = await salesRef.doc(docId).get();
+    const data = doc.data();
+
+    await salesRef.doc(docId).delete();
+
+    // Reverse inventory
+    if (data.item && data.qty) {
+      await adjustInventory(data.item, -data.qty, 'sale');
+    }
+
+    hideLoading();
+    showToast('Sale deleted', 'success');
+    loadSalesHistory();
+    loadDashboard();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// Adjust inventory helper (positive = add to sales/stockin, negative = reverse)
+async function adjustInventory(itemName, qtyChange, type) {
+  const invDoc = inventoryRef.doc(itemName);
+  const doc = await invDoc.get();
+  const configDoc = await configRef.doc('settings').get();
+  const reorderLevel = configDoc.exists ? (configDoc.data().reorderLevel || 10) : 10;
+
+  if (doc.exists) {
+    const data = doc.data();
+    let newTotalSales = data.totalSales || 0;
+    let newTotalStockIn = data.totalStockIn || 0;
+
+    if (type === 'sale') {
+      newTotalSales += qtyChange;
+    } else {
+      newTotalStockIn += qtyChange;
+    }
+
+    const newCurrent = (data.beginningStock || 0) + newTotalStockIn - newTotalSales;
+    const status = newCurrent <= reorderLevel ? 'LOW STOCK' : 'OK';
+    await invDoc.update({ totalSales: newTotalSales, totalStockIn: newTotalStockIn, currentStock: newCurrent, status: status });
+  }
+}
+
+// =====================================================
+// EDIT/DELETE COLLECTIONS
+// =====================================================
+async function editCollection(docId) {
+  try {
+    const doc = await collectionsRef.doc(docId).get();
+    if (!doc.exists) { showToast('Collection not found', 'error'); return; }
+    const c = doc.data();
+
+    const html = `
+      <div class="modal-overlay" id="edit-modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3><span class="material-icons">edit</span> Edit Collection</h3>
+            <button class="btn-icon" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span></button>
+          </div>
+          <form onsubmit="saveEditCollection(event, '${docId}')">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Customer</label>
+                <input type="text" id="edit-col-customer" value="${c.customer || ''}">
+              </div>
+              <div class="form-group">
+                <label>Invoice No</label>
+                <input type="text" id="edit-col-invoice" value="${c.invoiceNo || ''}">
+              </div>
+              <div class="form-group">
+                <label>Amount Due</label>
+                <input type="number" id="edit-col-due" value="${c.amountDue || 0}" step="0.01" oninput="editColComputeBalance()">
+              </div>
+              <div class="form-group">
+                <label>Amount Paid</label>
+                <input type="number" id="edit-col-paid" value="${c.amountPaid || 0}" step="0.01" oninput="editColComputeBalance()">
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="edit-col-date" value="${c.date || ''}">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><span class="material-icons">save</span> Save Changes</button>
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span> Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function editColComputeBalance() {
+  const due = parseFloat(document.getElementById('edit-col-due').value) || 0;
+  const paid = parseFloat(document.getElementById('edit-col-paid').value) || 0;
+  // Balance shown in form isn't displayed but computed on save
+}
+
+async function saveEditCollection(event, docId) {
+  event.preventDefault();
+  const due = parseFloat(document.getElementById('edit-col-due').value) || 0;
+  const paid = parseFloat(document.getElementById('edit-col-paid').value) || 0;
+
+  const updatedData = {
+    customer: document.getElementById('edit-col-customer').value,
+    invoiceNo: document.getElementById('edit-col-invoice').value,
+    amountDue: due,
+    amountPaid: paid,
+    balance: due - paid,
+    status: (due - paid) <= 0 ? 'PAID' : 'UNPAID',
+    date: document.getElementById('edit-col-date').value
+  };
+
+  showLoading();
+  try {
+    await collectionsRef.doc(docId).update(updatedData);
+    document.getElementById('edit-modal').remove();
+    hideLoading();
+    showToast('Collection updated!', 'success');
+    loadDashboard();
+    // Reload collections page if visible
+    if (document.getElementById('page-collections-list')) loadCollectionsList();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function deleteCollection(docId) {
+  if (!confirm('Delete this collection record?')) return;
+  showLoading();
+  try {
+    await collectionsRef.doc(docId).delete();
+    hideLoading();
+    showToast('Collection deleted', 'success');
+    loadDashboard();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// Close modal
+function closeModal(event) {
+  if (event.target.classList.contains('modal-overlay')) {
+    event.target.remove();
   }
 }
 

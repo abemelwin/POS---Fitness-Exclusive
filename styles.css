@@ -220,3 +220,47 @@ body {
 
 .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
 .sidebar-overlay.show { display: block; }
+
+
+/* MODAL */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 9998;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--bg-card); border-radius: var(--radius);
+  padding: 24px; max-width: 700px; width: 100%;
+  max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light);
+}
+
+.modal-header h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 18px; font-weight: 600;
+}
+
+.modal-header h3 .material-icons { color: var(--primary); }
+
+/* EDIT/DELETE BUTTONS IN TABLES */
+.btn-edit {
+  background: none; border: none; cursor: pointer;
+  color: var(--primary); padding: 4px; border-radius: 4px;
+  transition: var(--transition);
+}
+
+.btn-edit:hover { background: var(--primary-light); }
+
+td .btn-delete {
+  background: none; border: none; cursor: pointer;
+  color: var(--danger); padding: 4px; border-radius: 4px;
+  transition: var(--transition);
+}
+
+td .btn-delete:hover { background: var(--danger-light); }
