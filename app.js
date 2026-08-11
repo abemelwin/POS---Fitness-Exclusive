@@ -59,6 +59,8 @@ function navigateTo(page) {
   if (page === 'inventory') loadInventory();
   if (page === 'history') loadSalesHistory();
   if (page === 'settings') loadSettings();
+  if (page === 'stock-in') loadStockInHistory();
+  if (page === 'collections') loadCollectionsHistory();
   closeSidebar();
 }
 
@@ -331,6 +333,7 @@ async function submitStockIn(event) {
     showToast('Stock added: ' + stockData.item + ' +' + stockData.qty, 'success');
     document.getElementById('stockin-form').reset();
     setDefaultDates();
+    loadStockInHistory();
     loadDashboard();
   } catch (err) {
     hideLoading();
@@ -379,6 +382,7 @@ async function submitCollection(event) {
     document.getElementById('col-balance').value = '';
     document.getElementById('col-status').value = '';
     setDefaultDates();
+    loadCollectionsHistory();
     loadDashboard();
   } catch (err) {
     hideLoading();
@@ -767,9 +771,8 @@ async function saveEditCollection(event, docId) {
     document.getElementById('edit-modal').remove();
     hideLoading();
     showToast('Collection updated!', 'success');
+    loadCollectionsHistory();
     loadDashboard();
-    // Reload collections page if visible
-    if (document.getElementById('page-collections-list')) loadCollectionsList();
   } catch (err) {
     hideLoading();
     showToast('Error: ' + err.message, 'error');
@@ -783,6 +786,7 @@ async function deleteCollection(docId) {
     await collectionsRef.doc(docId).delete();
     hideLoading();
     showToast('Collection deleted', 'success');
+    loadCollectionsHistory();
     loadDashboard();
   } catch (err) {
     hideLoading();
@@ -898,6 +902,180 @@ async function deleteStaff(index) {
   populateDropdowns();
   loadSettings();
   showToast('Staff deleted', 'success');
+}
+
+// =====================================================
+// STOCK IN HISTORY + EDIT/DELETE
+// =====================================================
+async function loadStockInHistory() {
+  const tbody = document.getElementById('stockin-history-body');
+  if (!tbody) return;
+  try {
+    const snap = await stockInRef.orderBy('createdAt', 'desc').limit(50).get();
+    if (snap.empty) {
+      tbody.innerHTML = '<tr><td colspan="6" class="loading-row">No stock-in records yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(doc => {
+      const s = doc.data();
+      return `<tr>
+        <td>${s.date || ''}</td>
+        <td>${s.item || ''}</td>
+        <td><strong>${s.qty || 0}</strong></td>
+        <td>${s.supplier || ''}</td>
+        <td>${s.referenceNo || ''}</td>
+        <td>
+          <button class="btn-edit" onclick="editStockIn('${doc.id}')" title="Edit"><span class="material-icons">edit</span></button>
+          <button class="btn-delete" onclick="deleteStockIn('${doc.id}')" title="Delete"><span class="material-icons">delete</span></button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Error loading</td></tr>';
+  }
+}
+
+async function editStockIn(docId) {
+  try {
+    const doc = await stockInRef.doc(docId).get();
+    if (!doc.exists) { showToast('Record not found', 'error'); return; }
+    const s = doc.data();
+
+    const html = `
+      <div class="modal-overlay" id="edit-modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3><span class="material-icons">edit</span> Edit Stock In</h3>
+            <button class="btn-icon" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span></button>
+          </div>
+          <form onsubmit="saveEditStockIn(event, '${docId}')">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Item</label>
+                <select id="edit-si-item">${itemsData.map(i => `<option value="${i.name}" ${i.name === s.item ? 'selected' : ''}>${i.name}</option>`).join('')}</select>
+              </div>
+              <div class="form-group">
+                <label>Qty Added</label>
+                <input type="number" id="edit-si-qty" value="${s.qty || 0}" min="1">
+              </div>
+              <div class="form-group">
+                <label>Supplier</label>
+                <input type="text" id="edit-si-supplier" value="${s.supplier || ''}">
+              </div>
+              <div class="form-group">
+                <label>Reference No</label>
+                <input type="text" id="edit-si-ref" value="${s.referenceNo || ''}">
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="edit-si-date" value="${s.date || ''}">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><span class="material-icons">save</span> Save Changes</button>
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span> Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function saveEditStockIn(event, docId) {
+  event.preventDefault();
+  const oldDoc = await stockInRef.doc(docId).get();
+  const oldData = oldDoc.data();
+  const oldItem = oldData.item;
+  const oldQty = oldData.qty || 0;
+
+  const newItem = document.getElementById('edit-si-item').value;
+  const newQty = parseInt(document.getElementById('edit-si-qty').value) || 0;
+
+  const updatedData = {
+    item: newItem,
+    qty: newQty,
+    supplier: document.getElementById('edit-si-supplier').value,
+    referenceNo: document.getElementById('edit-si-ref').value,
+    date: document.getElementById('edit-si-date').value
+  };
+
+  showLoading();
+  try {
+    await stockInRef.doc(docId).update(updatedData);
+
+    // Adjust inventory if item or qty changed
+    if (oldItem !== newItem || oldQty !== newQty) {
+      await adjustInventory(oldItem, -oldQty, 'stockin');
+      await adjustInventory(newItem, newQty, 'stockin');
+    }
+
+    document.getElementById('edit-modal').remove();
+    hideLoading();
+    showToast('Stock-in updated!', 'success');
+    loadStockInHistory();
+    loadDashboard();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function deleteStockIn(docId) {
+  if (!confirm('Delete this stock-in record?')) return;
+  showLoading();
+  try {
+    const doc = await stockInRef.doc(docId).get();
+    const data = doc.data();
+    await stockInRef.doc(docId).delete();
+
+    if (data.item && data.qty) {
+      await adjustInventory(data.item, -data.qty, 'stockin');
+    }
+
+    hideLoading();
+    showToast('Stock-in deleted', 'success');
+    loadStockInHistory();
+    loadDashboard();
+  } catch (err) {
+    hideLoading();
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// =====================================================
+// COLLECTIONS HISTORY + EDIT/DELETE
+// =====================================================
+async function loadCollectionsHistory() {
+  const tbody = document.getElementById('collections-history-body');
+  if (!tbody) return;
+  try {
+    const snap = await collectionsRef.orderBy('createdAt', 'desc').limit(50).get();
+    if (snap.empty) {
+      tbody.innerHTML = '<tr><td colspan="8" class="loading-row">No collections yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(doc => {
+      const c = doc.data();
+      return `<tr>
+        <td>${c.date || ''}</td>
+        <td>${c.customer || ''}</td>
+        <td>${c.invoiceNo || ''}</td>
+        <td>${formatCurrency(c.amountDue)}</td>
+        <td>${formatCurrency(c.amountPaid)}</td>
+        <td><strong>${formatCurrency(c.balance)}</strong></td>
+        <td><span class="badge ${c.status === 'PAID' ? 'badge-ok' : 'badge-low'}">${c.status || ''}</span></td>
+        <td>
+          <button class="btn-edit" onclick="editCollection('${doc.id}')" title="Edit"><span class="material-icons">edit</span></button>
+          <button class="btn-delete" onclick="deleteCollection('${doc.id}')" title="Delete"><span class="material-icons">delete</span></button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Error loading</td></tr>';
+  }
 }
 
 // =====================================================
