@@ -271,7 +271,7 @@ async function submitSale(event) {
     unitPrice: price,
     amount: amount,
     paymentType: document.getElementById('sale-payment').value,
-    status: document.getElementById('sale-payment').value === 'Utang' ? 'UNPAID' : 'PAID',
+    status: document.getElementById('sale-status').value,
     date: document.getElementById('sale-date').value,
     branch: 'Trium Pasay',
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
