@@ -57,10 +57,10 @@ function navigateTo(page) {
 
   if (page === 'dashboard') loadDashboard();
   if (page === 'inventory') loadInventory();
-  if (page === 'history') loadSalesHistory();
+  if (page === 'history') { populateFilterDropdowns(); loadSalesHistory(); }
   if (page === 'settings') loadSettings();
   if (page === 'stock-in') loadStockInHistory();
-  if (page === 'collections') loadCollectionsHistory();
+  if (page === 'collections') { loadUnpaidSales(); loadCollectionsHistory(); }
   closeSidebar();
 }
 
@@ -98,7 +98,7 @@ async function loadConfig() {
           { name: 'Vita Milk', price: 75 }
         ],
         staff: ['Johnpaolo Napiza','Ahra Alandy','Gabriel Anjelo Cuizon','Jhudie Navarro','Elmar Diaz','Josephine Natividad','Jen Fernandez','Marc Maderazo Cotin','Julius Quepo','Lenny Candelon'],
-        paymentTypes: ['Cash', 'Gcash'],
+        paymentTypes: ['Cash', 'Gcash', 'Utang'],
         branch: 'Trium Pasay',
         reorderLevel: 10
       };
@@ -196,18 +196,31 @@ async function loadDashboard() {
     // Total Sales
     const salesSnap = await salesRef.get();
     let totalSales = 0;
-    salesSnap.forEach(doc => { totalSales += doc.data().amount || 0; });
+    let outstandingFromSales = 0;
+    salesSnap.forEach(doc => {
+      const d = doc.data();
+      totalSales += d.amount || 0;
+      // Outstanding = UNPAID sales (Utang) that haven't been fully collected
+      const status = d.status || (d.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+      if (status === 'UNPAID') {
+        outstandingFromSales += d.amount || 0;
+      }
+    });
     document.getElementById('dash-total-sales').textContent = formatCurrency(totalSales);
 
-    // Total Collections & Outstanding
+    // Total Collections & adjust outstanding
     const colSnap = await collectionsRef.get();
-    let totalCollections = 0, outstanding = 0;
+    let totalCollections = 0;
+    let totalCollected = 0;
     colSnap.forEach(doc => {
       const d = doc.data();
       totalCollections += d.amountPaid || 0;
-      outstanding += (d.amountDue || 0) - (d.amountPaid || 0);
+      totalCollected += d.amountPaid || 0;
     });
     document.getElementById('dash-total-collections').textContent = formatCurrency(totalCollections);
+
+    // Outstanding = UNPAID sales minus what's been collected
+    const outstanding = Math.max(0, outstandingFromSales - totalCollected);
     document.getElementById('dash-outstanding').textContent = formatCurrency(outstanding);
 
     // Inventory
@@ -258,6 +271,7 @@ async function submitSale(event) {
     unitPrice: price,
     amount: amount,
     paymentType: document.getElementById('sale-payment').value,
+    status: document.getElementById('sale-payment').value === 'Utang' ? 'UNPAID' : 'PAID',
     date: document.getElementById('sale-date').value,
     branch: 'Trium Pasay',
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -499,40 +513,79 @@ async function loadInventory() {
 }
 
 // =====================================================
-// SALES HISTORY PAGE
+// SALES HISTORY PAGE (with Status + Filters)
 // =====================================================
+let allSalesData = []; // Store for filtering
+
 async function loadSalesHistory() {
   const tbody = document.getElementById('history-table-body');
   try {
-    const snap = await salesRef.orderBy('createdAt', 'desc').limit(100).get();
+    const snap = await salesRef.orderBy('createdAt', 'desc').limit(200).get();
     if (snap.empty) {
-      tbody.innerHTML = '<tr><td colspan="9" class="loading-row">No sales history</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="loading-row">No sales history</td></tr>';
+      allSalesData = [];
       return;
     }
-    tbody.innerHTML = snap.docs.map(doc => {
-      const s = doc.data();
-      return `<tr>
-        <td><strong>${s.invoiceNo || ''}</strong></td>
-        <td>${s.date || ''}</td>
-        <td>${s.staff || ''}</td>
-        <td>${s.customer || ''}</td>
-        <td>${s.item || ''}</td>
-        <td>${s.qty || 0}</td>
-        <td><strong>${formatCurrency(s.amount)}</strong></td>
-        <td>${s.paymentType || ''}</td>
-        <td>
-          <button class="btn-edit" onclick="editSale('${doc.id}')" title="Edit">
-            <span class="material-icons">edit</span>
-          </button>
-          <button class="btn-delete" onclick="deleteSale('${doc.id}')" title="Delete">
-            <span class="material-icons">delete</span>
-          </button>
-        </td>
-      </tr>`;
-    }).join('');
+    allSalesData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderSalesHistory(allSalesData);
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="9" class="loading-row">Error loading</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="loading-row">Error loading</td></tr>';
   }
+}
+
+function renderSalesHistory(data) {
+  const tbody = document.getElementById('history-table-body');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="loading-row">No matching records</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(s => {
+    const status = s.status || (s.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+    return `<tr>
+      <td><strong>${s.invoiceNo || ''}</strong></td>
+      <td>${s.date || ''}</td>
+      <td>${s.staff || ''}</td>
+      <td>${s.customer || ''}</td>
+      <td>${s.item || ''}</td>
+      <td>${s.qty || 0}</td>
+      <td><strong>${formatCurrency(s.amount)}</strong></td>
+      <td>${s.paymentType || ''}</td>
+      <td><span class="badge ${status === 'PAID' ? 'badge-ok' : 'badge-low'}">${status}</span></td>
+      <td>
+        <button class="btn-edit" onclick="editSale('${s.id}')" title="Edit"><span class="material-icons">edit</span></button>
+        <button class="btn-delete" onclick="deleteSale('${s.id}')" title="Delete"><span class="material-icons">delete</span></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterSalesHistory() {
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+  const itemFilter = document.getElementById('filter-item').value;
+  const statusFilter = document.getElementById('filter-status').value;
+
+  let filtered = [...allSalesData];
+
+  if (dateFrom) filtered = filtered.filter(s => s.date >= dateFrom);
+  if (dateTo) filtered = filtered.filter(s => s.date <= dateTo);
+  if (itemFilter) filtered = filtered.filter(s => s.item === itemFilter);
+  if (statusFilter) {
+    filtered = filtered.filter(s => {
+      const status = s.status || (s.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+      return status === statusFilter;
+    });
+  }
+
+  renderSalesHistory(filtered);
+}
+
+function clearFilters() {
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-item').value = '';
+  document.getElementById('filter-status').value = '';
+  renderSalesHistory(allSalesData);
 }
 
 // Edit Sale
@@ -582,6 +635,13 @@ async function editSale(docId) {
               <div class="form-group">
                 <label>Payment Type</label>
                 <select id="edit-payment">${paymentTypes.map(p => `<option value="${p}" ${p === s.paymentType ? 'selected' : ''}>${p}</option>`).join('')}</select>
+              </div>
+              <div class="form-group">
+                <label>Status</label>
+                <select id="edit-status">
+                  <option value="PAID" ${(s.status || '') === 'PAID' ? 'selected' : ''}>PAID</option>
+                  <option value="UNPAID" ${(s.status || '') === 'UNPAID' ? 'selected' : ''}>UNPAID</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Date</label>
@@ -634,6 +694,7 @@ async function saveEditSale(event, docId) {
     unitPrice: unitPrice,
     amount: qty * unitPrice,
     paymentType: document.getElementById('edit-payment').value,
+    status: document.getElementById('edit-status').value,
     date: document.getElementById('edit-date').value
   };
 
@@ -823,12 +884,14 @@ function closeModal(event) {
 // SETTINGS PAGE
 // =====================================================
 async function loadSettings() {
-  // Items list
+  // Items list (editable name and price)
   const itemsContainer = document.getElementById('items-list-container');
   itemsContainer.innerHTML = itemsData.map((item, i) => `
     <div class="settings-item">
-      <span>${item.name}</span>
-      <span class="item-price">₱${item.price}</span>
+      <input type="text" value="${item.name}" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;" 
+        onchange="editItemName(${i}, this.value)">
+      <input type="number" value="${item.price}" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:4px;text-align:right;" 
+        onchange="editItemPrice(${i}, this.value)">
       <button class="btn-delete" onclick="deleteItem(${i})"><span class="material-icons">delete</span></button>
     </div>
   `).join('');
@@ -875,6 +938,25 @@ async function updateBeginningStock(docId, value) {
     showToast('Beginning stock updated', 'success');
     loadDashboard();
   }
+}
+
+async function editItemName(index, newName) {
+  if (!newName.trim()) { showToast('Name cannot be empty', 'error'); loadSettings(); return; }
+  itemsData[index].name = newName.trim();
+  priceMap = {};
+  itemsData.forEach(item => { priceMap[item.name] = item.price; });
+  await configRef.doc('settings').update({ items: itemsData });
+  populateDropdowns();
+  showToast('Item name updated', 'success');
+}
+
+async function editItemPrice(index, newPrice) {
+  const price = parseFloat(newPrice) || 0;
+  if (price <= 0) { showToast('Price must be greater than 0', 'error'); loadSettings(); return; }
+  itemsData[index].price = price;
+  priceMap[itemsData[index].name] = price;
+  await configRef.doc('settings').update({ items: itemsData });
+  showToast('Price updated', 'success');
 }
 
 async function addItem() {
@@ -1094,6 +1176,65 @@ async function loadCollectionsHistory() {
   } catch (err) {
     tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Error loading</td></tr>';
   }
+}
+
+// =====================================================
+// COLLECTIONS AUTO-POPULATE FROM UNPAID SALES
+// =====================================================
+async function loadUnpaidSales() {
+  const select = document.getElementById('col-unpaid-select');
+  if (!select) return;
+  
+  try {
+    const snap = await salesRef.get();
+    const unpaid = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      const status = d.status || (d.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+      if (status === 'UNPAID') {
+        unpaid.push({ id: doc.id, ...d });
+      }
+    });
+    
+    select.innerHTML = '<option value="">-- Or manually enter below --</option>';
+    unpaid.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ invoice: s.invoiceNo, customer: s.customer, amount: s.amount });
+      opt.textContent = `${s.invoiceNo} — ${s.customer} — ${formatCurrency(s.amount)}`;
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('loadUnpaidSales error:', err);
+  }
+}
+
+function autoFillCollection() {
+  const select = document.getElementById('col-unpaid-select');
+  if (!select.value) return;
+  
+  try {
+    const data = JSON.parse(select.value);
+    document.getElementById('col-customer').value = data.customer || '';
+    document.getElementById('col-invoice').value = data.invoice || '';
+    document.getElementById('col-due').value = data.amount || 0;
+    document.getElementById('col-paid').focus();
+    computeBalance();
+  } catch (err) {
+    console.error('autoFillCollection error:', err);
+  }
+}
+
+// Populate filter-item dropdown when history loads
+function populateFilterDropdowns() {
+  const filterItem = document.getElementById('filter-item');
+  if (!filterItem) return;
+  filterItem.innerHTML = '<option value="">All Items</option>';
+  itemsData.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.name;
+    opt.textContent = item.name;
+    filterItem.appendChild(opt);
+  });
 }
 
 // =====================================================

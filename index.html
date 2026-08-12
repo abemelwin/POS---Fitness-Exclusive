@@ -231,6 +231,13 @@
     <div class="page" id="page-collections">
       <div class="card form-card">
         <h3 class="card-title"><span class="material-icons">payments</span> Record Collection</h3>
+        <!-- Auto-populate from unpaid sales -->
+        <div class="form-group" style="margin-bottom:16px">
+          <label>Select Unpaid Sale (auto-fill)</label>
+          <select id="col-unpaid-select" onchange="autoFillCollection()">
+            <option value="">-- Or manually enter below --</option>
+          </select>
+        </div>
         <form id="collections-form" onsubmit="submitCollection(event)">
           <div class="form-grid">
             <div class="form-group">
@@ -299,10 +306,38 @@
     <div class="page" id="page-history">
       <div class="card">
         <h3 class="card-title"><span class="material-icons">receipt_long</span> Sales History</h3>
+        <!-- FILTERS -->
+        <div class="filter-bar">
+          <div class="form-group">
+            <label>From</label>
+            <input type="date" id="filter-date-from" onchange="filterSalesHistory()">
+          </div>
+          <div class="form-group">
+            <label>To</label>
+            <input type="date" id="filter-date-to" onchange="filterSalesHistory()">
+          </div>
+          <div class="form-group">
+            <label>Item</label>
+            <select id="filter-item" onchange="filterSalesHistory()">
+              <option value="">All Items</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="filter-status" onchange="filterSalesHistory()">
+              <option value="">All</option>
+              <option value="PAID">PAID</option>
+              <option value="UNPAID">UNPAID</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="clearFilters()" style="align-self:flex-end;padding:8px 12px;">
+            <span class="material-icons">clear</span> Clear
+          </button>
+        </div>
         <div class="table-container">
           <table class="data-table">
-            <thead><tr><th>Invoice</th><th>Date</th><th>Staff</th><th>Customer</th><th>Item</th><th>Qty</th><th>Amount</th><th>Payment</th><th>Actions</th></tr></thead>
-            <tbody id="history-table-body"><tr><td colspan="9" class="loading-row">Loading...</td></tr></tbody>
+            <thead><tr><th>Invoice</th><th>Date</th><th>Staff</th><th>Customer</th><th>Item</th><th>Qty</th><th>Amount</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="history-table-body"><tr><td colspan="10" class="loading-row">Loading...</td></tr></tbody>
           </table>
         </div>
       </div>
