@@ -391,19 +391,32 @@ async function submitCollection(event) {
 }
 
 // =====================================================
-// INVOICE GENERATION (Auto-increment)
+// INVOICE GENERATION (Based on actual last invoice in sales)
 // =====================================================
 async function generateInvoiceNo() {
-  const counterRef = configRef.doc('counter');
+  const lock = configRef.doc('counter');
   
   return db.runTransaction(async (transaction) => {
-    const counterDoc = await transaction.get(counterRef);
-    let currentNum = 0;
-    if (counterDoc.exists) {
-      currentNum = counterDoc.data().lastInvoice || 0;
+    // Get the actual highest invoice number from sales
+    const salesSnap = await salesRef.orderBy('invoiceNo', 'desc').limit(1).get();
+    let maxNum = 0;
+    
+    if (!salesSnap.empty) {
+      const lastInvoice = salesSnap.docs[0].data().invoiceNo || '';
+      if (lastInvoice.startsWith('INV-')) {
+        maxNum = parseInt(lastInvoice.replace('INV-', '')) || 0;
+      }
     }
-    const nextNum = currentNum + 1;
-    transaction.set(counterRef, { lastInvoice: nextNum }, { merge: true });
+    
+    // Also check counter in case it's higher
+    const counterDoc = await transaction.get(lock);
+    if (counterDoc.exists) {
+      const counterNum = counterDoc.data().lastInvoice || 0;
+      if (counterNum > maxNum) maxNum = counterNum;
+    }
+    
+    const nextNum = maxNum + 1;
+    transaction.set(lock, { lastInvoice: nextNum }, { merge: true });
     return 'INV-' + nextNum.toString().padStart(5, '0');
   });
 }
