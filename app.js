@@ -539,6 +539,10 @@ async function editSale(docId) {
           <form onsubmit="saveEditSale(event, '${docId}')">
             <div class="form-grid">
               <div class="form-group">
+                <label>Invoice No</label>
+                <input type="text" id="edit-invoice" value="${s.invoiceNo || ''}">
+              </div>
+              <div class="form-group">
                 <label>Staff</label>
                 <select id="edit-staff">${staffData.map(st => `<option value="${st}" ${st === s.staff ? 'selected' : ''}>${st}</option>`).join('')}</select>
               </div>
@@ -609,6 +613,7 @@ async function saveEditSale(event, docId) {
   const oldQty = oldData.qty || 0;
 
   const updatedData = {
+    invoiceNo: document.getElementById('edit-invoice').value,
     staff: document.getElementById('edit-staff').value,
     customer: document.getElementById('edit-customer').value,
     item: document.getElementById('edit-item').value,
