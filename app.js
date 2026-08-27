@@ -1242,8 +1242,8 @@ function renderCollectionsHistory(data) {
         <td><strong>${formatCurrency(c.balance)}</strong></td>
         <td><span class="badge ${c.status === 'PAID' ? 'badge-ok' : 'badge-low'}">${c.status || ''}</span></td>
         <td>
-          <button class="btn-edit" onclick="editCollection('${doc.id}')" title="Edit"><span class="material-icons">edit</span></button>
-          <button class="btn-delete" onclick="deleteCollection('${doc.id}')" title="Delete"><span class="material-icons">delete</span></button>
+          <button class="btn-edit" onclick="editCollection('${c.id}')" title="Edit"><span class="material-icons">edit</span></button>
+          <button class="btn-delete" onclick="deleteCollection('${c.id}')" title="Delete"><span class="material-icons">delete</span></button>
         </td>
       </tr>`;
     }).join('');
