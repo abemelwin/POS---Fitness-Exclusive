@@ -60,7 +60,7 @@ function navigateTo(page) {
   if (page === 'history') { populateFilterDropdowns(); loadSalesHistory(); }
   if (page === 'settings') loadSettings();
   if (page === 'stock-in') loadStockInHistory();
-  if (page === 'collections') { loadUnpaidSales(); loadCollectionsHistory(); }
+  if (page === 'collections') loadCollectionsHistory();
   closeSidebar();
 }
 
@@ -143,11 +143,18 @@ function setupRealtimeListeners() {
   // Listen to sales changes for dashboard
   salesRef.orderBy('createdAt', 'desc').limit(10).onSnapshot(snapshot => {
     updateRecentSales(snapshot.docs);
+    loadDashboard();
   });
 
   // Listen to inventory changes
   inventoryRef.onSnapshot(snapshot => {
     updateInventoryStatus(snapshot.docs);
+  });
+
+  collectionsRef.orderBy('createdAt', 'desc').limit(200).onSnapshot(snapshot => {
+    allCollectionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    filterCollectionsHistory();
+    loadDashboard();
   });
 }
 
@@ -288,8 +295,9 @@ async function submitSale(event) {
     const invoiceNo = await generateInvoiceNo();
     saleData.invoiceNo = invoiceNo;
 
-    // Save sale
-    await salesRef.add(saleData);
+    // Save sale and mirror paid sales in collections history.
+    const saleRef = await salesRef.add(saleData);
+    await syncCollectionForSale(saleRef.id, saleData);
 
     // Update inventory
     await updateInventoryAfterSale(item, qty);
@@ -401,6 +409,28 @@ async function submitCollection(event) {
   } catch (err) {
     hideLoading();
     showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function syncCollectionForSale(saleId, saleData) {
+  const collectionRef = collectionsRef.doc('sale-' + saleId);
+  const status = saleData.status || (saleData.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+
+  if (status === 'PAID') {
+    await collectionRef.set({
+      saleId: saleId,
+      customer: saleData.customer || '',
+      invoiceNo: saleData.invoiceNo || '',
+      amountDue: saleData.amount || 0,
+      amountPaid: saleData.amount || 0,
+      balance: 0,
+      status: 'PAID',
+      date: saleData.date || '',
+      createdAt: saleData.createdAt || firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } else {
+    const existing = await collectionRef.get();
+    if (existing.exists) await collectionRef.delete();
   }
 }
 
@@ -701,6 +731,7 @@ async function saveEditSale(event, docId) {
   showLoading();
   try {
     await salesRef.doc(docId).update(updatedData);
+    await syncCollectionForSale(docId, updatedData);
 
     // Adjust inventory if item or qty changed
     if (oldItem !== updatedData.item || oldQty !== updatedData.qty) {
@@ -1148,17 +1179,60 @@ async function deleteStockIn(docId) {
 // =====================================================
 // COLLECTIONS HISTORY + EDIT/DELETE
 // =====================================================
+let allCollectionsData = [];
+
 async function loadCollectionsHistory() {
   const tbody = document.getElementById('collections-history-body');
   if (!tbody) return;
   try {
-    const snap = await collectionsRef.orderBy('createdAt', 'desc').limit(50).get();
+    await syncPaidSalesToCollections();
+    const snap = await collectionsRef.orderBy('createdAt', 'desc').limit(200).get();
     if (snap.empty) {
       tbody.innerHTML = '<tr><td colspan="8" class="loading-row">No collections yet</td></tr>';
+      allCollectionsData = [];
       return;
     }
-    tbody.innerHTML = snap.docs.map(doc => {
-      const c = doc.data();
+    allCollectionsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderCollectionsHistory(allCollectionsData);
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Error loading</td></tr>';
+  }
+}
+
+async function syncPaidSalesToCollections() {
+  const salesSnap = await salesRef.get();
+  const batch = db.batch();
+  let changes = 0;
+
+  salesSnap.forEach(doc => {
+    const sale = doc.data();
+    const status = sale.status || (sale.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
+    if (status !== 'PAID') return;
+
+    batch.set(collectionsRef.doc('sale-' + doc.id), {
+      saleId: doc.id,
+      customer: sale.customer || '',
+      invoiceNo: sale.invoiceNo || '',
+      amountDue: sale.amount || 0,
+      amountPaid: sale.amount || 0,
+      balance: 0,
+      status: 'PAID',
+      date: sale.date || '',
+      createdAt: sale.createdAt || firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    changes++;
+  });
+
+  if (changes > 0) await batch.commit();
+}
+
+function renderCollectionsHistory(data) {
+  const tbody = document.getElementById('collections-history-body');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">No matching records</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(c => {
       return `<tr>
         <td>${c.date || ''}</td>
         <td>${c.customer || ''}</td>
@@ -1173,9 +1247,29 @@ async function loadCollectionsHistory() {
         </td>
       </tr>`;
     }).join('');
-  } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Error loading</td></tr>';
-  }
+}
+
+function filterCollectionsHistory() {
+  const dateFrom = document.getElementById('collection-filter-date-from').value;
+  const dateTo = document.getElementById('collection-filter-date-to').value;
+  const search = document.getElementById('collection-filter-search').value.trim().toLowerCase();
+  const statusFilter = document.getElementById('collection-filter-status').value;
+
+  const filtered = allCollectionsData.filter(c => {
+    const matchesDate = (!dateFrom || c.date >= dateFrom) && (!dateTo || c.date <= dateTo);
+    const matchesSearch = !search || (c.customer || '').toLowerCase().includes(search) || (c.invoiceNo || '').toLowerCase().includes(search);
+    const matchesStatus = !statusFilter || c.status === statusFilter;
+    return matchesDate && matchesSearch && matchesStatus;
+  });
+  renderCollectionsHistory(filtered);
+}
+
+function clearCollectionFilters() {
+  document.getElementById('collection-filter-date-from').value = '';
+  document.getElementById('collection-filter-date-to').value = '';
+  document.getElementById('collection-filter-search').value = '';
+  document.getElementById('collection-filter-status').value = '';
+  renderCollectionsHistory(allCollectionsData);
 }
 
 // =====================================================

@@ -7,7 +7,8 @@ A browser-based point-of-sale and inventory management system for the Fitness Ex
 - Dashboard with total sales, collections, outstanding balances, and inventory on hand
 - New sales with automatic amount computation and invoice generation
 - Stock receiving with supplier and reference details
-- Collection recording for unpaid sales
+- Automatic paid-sale entries in Collections history
+- Filterable collections history
 - Inventory tracking with low-stock status
 - Sales history with filtering and editing support
 - Collections and stock-in history
@@ -116,5 +117,5 @@ The Firebase web configuration is expected to be present in a client-side applic
 
 - Use **Settings** to configure the items, prices, staff, payment types, branch, and reorder level.
 - Record stock before creating sales so inventory quantities are accurate.
-- Use the **Collections** page to record payments for unpaid sales.
+- Use the **Collections** page to review paid-sale history and filter records by date, customer, invoice, or status.
 - The dashboard and inventory status update from Firestore in real time.

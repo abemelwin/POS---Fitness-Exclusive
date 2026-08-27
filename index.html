@@ -236,57 +236,33 @@
 
     <!-- PAGE: COLLECTIONS -->
     <div class="page" id="page-collections">
-      <div class="card form-card">
-        <h3 class="card-title"><span class="material-icons">payments</span> Record Collection</h3>
-        <!-- Auto-populate from unpaid sales -->
-        <div class="form-group" style="margin-bottom:16px">
-          <label>Select Unpaid Sale (auto-fill)</label>
-          <select id="col-unpaid-select" onchange="autoFillCollection()">
-            <option value="">-- Or manually enter below --</option>
-          </select>
-        </div>
-        <form id="collections-form" onsubmit="submitCollection(event)">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Customer</label>
-              <input type="text" id="col-customer" placeholder="Customer name" required>
-            </div>
-            <div class="form-group">
-              <label>Invoice No</label>
-              <input type="text" id="col-invoice" placeholder="e.g. INV-00001">
-            </div>
-            <div class="form-group">
-              <label>Amount Due</label>
-              <input type="number" id="col-due" step="0.01" min="0" required oninput="computeBalance()">
-            </div>
-            <div class="form-group">
-              <label>Amount Paid</label>
-              <input type="number" id="col-paid" step="0.01" min="0" required oninput="computeBalance()">
-            </div>
-            <div class="form-group">
-              <label>Balance</label>
-              <input type="text" id="col-balance" readonly class="readonly-field">
-            </div>
-            <div class="form-group">
-              <label>Status</label>
-              <input type="text" id="col-status" readonly class="readonly-field">
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="col-date">
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btn-submit-collection">
-              <span class="material-icons">check_circle</span> Record Payment
-            </button>
-            <button type="reset" class="btn btn-secondary"><span class="material-icons">clear</span> Clear</button>
-          </div>
-        </form>
-      </div>
-      <!-- Collections History -->
-      <div class="card" style="margin-top:16px">
+      <div class="card">
         <h3 class="card-title"><span class="material-icons">history</span> Collections History</h3>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label>From</label>
+            <input type="date" id="collection-filter-date-from" onchange="filterCollectionsHistory()">
+          </div>
+          <div class="form-group">
+            <label>To</label>
+            <input type="date" id="collection-filter-date-to" onchange="filterCollectionsHistory()">
+          </div>
+          <div class="form-group">
+            <label>Customer / Invoice</label>
+            <input type="search" id="collection-filter-search" placeholder="Search" oninput="filterCollectionsHistory()">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="collection-filter-status" onchange="filterCollectionsHistory()">
+              <option value="">All</option>
+              <option value="PAID">PAID</option>
+              <option value="UNPAID">UNPAID</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="clearCollectionFilters()" style="align-self:flex-end;padding:8px 12px;">
+            <span class="material-icons">clear</span> Clear
+          </button>
+        </div>
         <div class="table-container">
           <table class="data-table">
             <thead><tr><th>Date</th><th>Customer</th><th>Invoice</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
