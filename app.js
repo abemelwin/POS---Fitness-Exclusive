@@ -77,6 +77,25 @@ function closeSidebar() {
   if (overlay) overlay.classList.remove('show');
 }
 
+// Hover expand/collapse (desktop only)
+(function initSidebarHover() {
+  document.addEventListener('DOMContentLoaded', function() {
+    const sidebar = document.getElementById('sidebar');
+    let hoverTimeout;
+
+    sidebar.addEventListener('mouseenter', function() {
+      clearTimeout(hoverTimeout);
+      sidebar.classList.add('expanded');
+    });
+
+    sidebar.addEventListener('mouseleave', function() {
+      hoverTimeout = setTimeout(function() {
+        sidebar.classList.remove('expanded');
+      }, 100);
+    });
+  });
+})();
+
 // =====================================================
 // CONFIG: Load Items, Staff, Payment Types from Firestore
 // =====================================================
