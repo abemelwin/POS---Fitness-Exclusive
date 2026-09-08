@@ -167,7 +167,7 @@ function updateRecentSales(docs) {
   tbody.innerHTML = docs.map(doc => {
     const s = doc.data();
     return `<tr>
-      <td><strong>${s.invoiceNo || ''}</strong></td>
+      <td><strong>${formatInvoice(s.invoiceNo)}</strong></td>
       <td>${s.customer || ''}</td>
       <td>${s.item || ''}</td>
       <td><strong>${formatCurrency(s.amount)}</strong></td>
@@ -305,8 +305,8 @@ async function submitSale(event) {
     hideLoading();
     document.getElementById('sales-form').style.display = 'none';
     document.getElementById('sale-success').style.display = 'block';
-    document.getElementById('sale-success-detail').textContent = invoiceNo + ' | ' + item + ' x' + qty + ' = ' + formatCurrency(amount);
-    showToast('Sale recorded: ' + invoiceNo, 'success');
+    document.getElementById('sale-success-detail').textContent = formatInvoice(invoiceNo) + ' | ' + item + ' x' + qty + ' = ' + formatCurrency(amount);
+    showToast('Sale recorded: ' + formatInvoice(invoiceNo), 'success');
     loadDashboard();
   } catch (err) {
     hideLoading();
@@ -576,7 +576,7 @@ function renderSalesHistory(data) {
   tbody.innerHTML = data.map(s => {
     const status = s.status || (s.paymentType === 'Utang' ? 'UNPAID' : 'PAID');
     return `<tr>
-      <td><strong>${s.invoiceNo || ''}</strong></td>
+      <td><strong>${formatInvoice(s.invoiceNo)}</strong></td>
       <td>${s.date || ''}</td>
       <td>${s.staff || ''}</td>
       <td>${s.customer || ''}</td>
@@ -633,7 +633,7 @@ async function editSale(docId) {
       <div class="modal-overlay" id="edit-modal" onclick="closeModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
           <div class="modal-header">
-            <h3><span class="material-icons">edit</span> Edit Sale — ${s.invoiceNo || ''}</h3>
+            <h3><span class="material-icons">edit</span> Edit Sale — ${formatInvoice(s.invoiceNo)}</h3>
             <button class="btn-icon" onclick="document.getElementById('edit-modal').remove()"><span class="material-icons">close</span></button>
           </div>
           <form onsubmit="saveEditSale(event, '${docId}')">
@@ -1240,7 +1240,7 @@ function renderCollectionsHistory(data) {
       return `<tr>
         <td>${c.date || ''}</td>
         <td>${c.customer || ''}</td>
-        <td>${c.invoiceNo || ''}</td>
+        <td>${formatInvoice(c.invoiceNo)}</td>
         <td>${formatCurrency(c.amountDue)}</td>
         <td>${formatCurrency(c.amountPaid)}</td>
         <td><strong>${formatCurrency(c.balance)}</strong></td>
@@ -1298,7 +1298,7 @@ async function loadUnpaidSales() {
     unpaid.forEach(s => {
       const opt = document.createElement('option');
       opt.value = JSON.stringify({ invoice: s.invoiceNo, customer: s.customer, amount: s.amount });
-      opt.textContent = `${s.invoiceNo} — ${s.customer} — ${formatCurrency(s.amount)}`;
+      opt.textContent = `${formatInvoice(s.invoiceNo)} — ${s.customer} — ${formatCurrency(s.amount)}`;
       select.appendChild(opt);
     });
   } catch (err) {
@@ -1340,6 +1340,15 @@ function populateFilterDropdowns() {
 // =====================================================
 function formatCurrency(value) {
   return '₱ ' + (Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Display-only: converts old INV-XXXXX format to FIT-PAS_INV-XXXXX
+function formatInvoice(invoiceNo) {
+  if (!invoiceNo) return '';
+  if (invoiceNo.startsWith('INV-')) {
+    return 'FIT-PAS_INV-' + invoiceNo.slice(4);
+  }
+  return invoiceNo;
 }
 
 function showLoading() { document.getElementById('loading-overlay').classList.add('show'); }
