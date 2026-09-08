@@ -350,6 +350,11 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.sidebar-expanded .main-content {
+  margin-left: var(--sidebar-width);
 }
 
 .topbar {

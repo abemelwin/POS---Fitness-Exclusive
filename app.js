@@ -86,11 +86,13 @@ function closeSidebar() {
     sidebar.addEventListener('mouseenter', function() {
       clearTimeout(hoverTimeout);
       sidebar.classList.add('expanded');
+      document.body.classList.add('sidebar-expanded');
     });
 
     sidebar.addEventListener('mouseleave', function() {
       hoverTimeout = setTimeout(function() {
         sidebar.classList.remove('expanded');
+        document.body.classList.remove('sidebar-expanded');
       }, 100);
     });
   });
