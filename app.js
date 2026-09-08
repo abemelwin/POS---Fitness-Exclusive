@@ -439,6 +439,7 @@ async function syncCollectionForSale(saleId, saleData) {
 // =====================================================
 async function generateInvoiceNo() {
   const lock = configRef.doc('counter');
+  const INVOICE_PREFIX = 'FIT-PAS_INV-';
   
   return db.runTransaction(async (transaction) => {
     // Get the actual highest invoice number from sales
@@ -447,7 +448,10 @@ async function generateInvoiceNo() {
     
     if (!salesSnap.empty) {
       const lastInvoice = salesSnap.docs[0].data().invoiceNo || '';
-      if (lastInvoice.startsWith('INV-')) {
+      // Support both old INV- prefix and new FIT-PAS_INV- prefix
+      if (lastInvoice.startsWith(INVOICE_PREFIX)) {
+        maxNum = parseInt(lastInvoice.replace(INVOICE_PREFIX, '')) || 0;
+      } else if (lastInvoice.startsWith('INV-')) {
         maxNum = parseInt(lastInvoice.replace('INV-', '')) || 0;
       }
     }
@@ -461,7 +465,7 @@ async function generateInvoiceNo() {
     
     const nextNum = maxNum + 1;
     transaction.set(lock, { lastInvoice: nextNum }, { merge: true });
-    return 'INV-' + nextNum.toString().padStart(5, '0');
+    return INVOICE_PREFIX + nextNum.toString().padStart(5, '0');
   });
 }
 
